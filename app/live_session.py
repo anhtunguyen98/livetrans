@@ -34,8 +34,6 @@ class SessionState:
     first_audio_ms: int = 0
     speech_started: bool = False
     utterance_count: int = 0
-    energy_speech_frames: int = 0
-    energy_silence_frames: int = 0
     started_at: float = field(default_factory=time.perf_counter)
     vad: Any = None
 
@@ -83,16 +81,9 @@ class LiveSessionHandler:
                         state.last_processed_bytes = len(state.pcm)
                         await self._update(websocket, state, final=False)
                     if endpoint:
-                        if state.energy_speech_frames < self.settings.vad_min_voiced_frames:
-                            await websocket.send_json({
-                                "type": "utterance.discarded",
-                                "reason": "not_enough_voiced_audio",
-                                "voiced_ms": state.energy_speech_frames * 10,
-                            })
-                        else:
-                            await self._update(websocket, state, final=True)
-                            state.utterance_count += 1
-                            await websocket.send_json({"type": "utterance.done", "index": state.utterance_count})
+                        await self._update(websocket, state, final=True)
+                        state.utterance_count += 1
+                        await websocket.send_json({"type": "utterance.done", "index": state.utterance_count})
                         self._reset_utterance(state)
                         state.vad = self._new_vad(self.settings)
                 elif message.get("text"):
@@ -102,16 +93,10 @@ class LiveSessionHandler:
                             if key in event: setattr(state, key, event[key])
                     elif event["type"] == "input.commit":
                         if not state.speech_started:
-                            rms, peak = self._pcm_levels(bytes(state.pcm))
-                            if len(state.pcm) >= 9600 and rms >= 160:
-                                state.speech_started = True
-                                state.started_at = time.perf_counter()
-                                await websocket.send_json({"type": "vad.speech_start", "time": 0,
-                                                           "fallback": "energy", "rms": rms, "peak": peak})
-                            elif state.utterance_count == 0:
+                            if state.utterance_count == 0:
                                 await websocket.send_json({
                                     "type": "error",
-                                    "message": f"Không nhận được giọng nói (RMS {rms}, peak {peak}). Kiểm tra mic/input preview.",
+                                    "message": "OmniVAD không phát hiện giọng nói. Kiểm tra mic/input preview.",
                                 })
                                 return
                         if state.speech_started:
@@ -151,8 +136,6 @@ class LiveSessionHandler:
         state.first_text_ms = 0
         state.first_audio_ms = 0
         state.speech_started = False
-        state.energy_speech_frames = 0
-        state.energy_silence_frames = 0
         state.started_at = time.perf_counter()
 
     async def _finish_tts(self, ws: WebSocket, state: SessionState) -> None:
@@ -218,20 +201,7 @@ class LiveSessionHandler:
         while len(state.vad_buffer) >= 320:
             frame = bytes(state.vad_buffer[:320]); del state.vad_buffer[:320]
             samples = np.frombuffer(frame, dtype=np.int16)
-            frame_rms = float(np.sqrt(np.mean(samples.astype(np.float32) ** 2)))
-            if frame_rms >= self.settings.vad_energy_threshold:
-                state.energy_speech_frames += 1
-                state.energy_silence_frames = 0
-            elif state.speech_started:
-                state.energy_silence_frames += 1
-            else:
-                state.energy_speech_frames = 0
             result = state.vad.process(samples)
-            if (not state.speech_started
-                    and state.energy_speech_frames >= self.settings.vad_energy_start_frames):
-                state.speech_started = True
-                state.started_at = time.perf_counter()
-                await ws.send_json({"type": "vad.speech_start", "time": 0, "fallback": "energy"})
             if result is None: continue
             if result.is_speech_start:
                 if not state.speech_started:
@@ -241,11 +211,6 @@ class LiveSessionHandler:
             if result.is_speech_end and state.speech_started:
                 await ws.send_json({"type": "vad.speech_end", "time": result.speech_end_frame * 0.01})
                 endpoint = True
-            elif (state.speech_started
-                  and state.energy_silence_frames >= self.settings.vad_energy_silence_frames):
-                await ws.send_json({"type": "vad.speech_end", "time": 0, "fallback": "energy"})
-                endpoint = True
-                state.energy_silence_frames = 0
         return endpoint
 
     async def _update(self, ws: WebSocket, state: SessionState, final: bool) -> None:

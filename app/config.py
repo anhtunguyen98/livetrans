@@ -19,10 +19,6 @@ class Settings(BaseSettings):
     live_min_stable_chars: int = 18
     vad_threshold: float = 0.8
     vad_min_silence_frames: int = 60
-    vad_energy_threshold: int = 1000
-    vad_energy_start_frames: int = 15
-    vad_energy_silence_frames: int = 60
-    vad_min_voiced_frames: int = 20
 
     model_config = SettingsConfigDict(env_prefix="LIVETRANS_", env_file=".env")
 

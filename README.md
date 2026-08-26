@@ -148,8 +148,8 @@ LIVETRANS_MODE=mock python -m uvicorn app.main:app \
 
 1. Clicking **Start stream** opens one browser WebSocket and continuously sends
    mono PCM16 audio at 16 kHz.
-2. OmniVAD plus an energy gate identifies speech and rejects short non-speech
-   impulses before ASR.
+2. OmniVAD identifies speech boundaries. RMS/peak values are displayed only as
+   input diagnostics and never decide whether ASR runs.
 3. While an utterance is active, Qwen3-ASR is called on rolling windows. vLLM
    SSE transcription deltas are forwarded to the UI word by word.
 4. At a VAD endpoint, final ASR and MT output is committed. The microphone and
@@ -159,15 +159,11 @@ LIVETRANS_MODE=mock python -m uvicorn app.main:app \
 6. Only clicking **Stop stream** closes capture and drains the remaining TTS
    queue.
 
-Current VAD defaults are intentionally conservative:
+Current OmniVAD defaults:
 
 ```dotenv
 LIVETRANS_VAD_THRESHOLD=0.8
 LIVETRANS_VAD_MIN_SILENCE_FRAMES=60
-LIVETRANS_VAD_ENERGY_THRESHOLD=1000
-LIVETRANS_VAD_ENERGY_START_FRAMES=15
-LIVETRANS_VAD_ENERGY_SILENCE_FRAMES=60
-LIVETRANS_VAD_MIN_VOICED_FRAMES=20
 ```
 
 ## HTTP and WebSocket API
