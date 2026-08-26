@@ -20,7 +20,7 @@ from .vllm_client import VLLMClients, pcm16_wav, stable_prefix
 
 @dataclass
 class SessionState:
-    source: str = "auto"; target: str = "en"; speed: float = 1.0
+    source: str = "vi"; target: str = "en"; speed: float = 1.0
     pcm: bytearray = field(default_factory=bytearray)
     vad_buffer: bytearray = field(default_factory=bytearray)
     last_processed_bytes: int = 0
@@ -89,8 +89,9 @@ class LiveSessionHandler:
                 elif message.get("text"):
                     event = json.loads(message["text"])
                     if event["type"] == "session.configure":
-                        for key in ("source", "target", "speed"):
-                            if key in event: setattr(state, key, event[key])
+                        state.source = "vi"
+                        state.target = "en"
+                        if "speed" in event: state.speed = event["speed"]
                     elif event["type"] == "input.commit":
                         if not state.speech_started:
                             if state.utterance_count == 0:

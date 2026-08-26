@@ -43,13 +43,14 @@ async def vllm_health() -> dict:
 
 @app.post("/api/translate")
 async def translate(
-    audio: UploadFile = File(...), source_language: str = Form("auto"), target_language: str = Form("en"),
+    audio: UploadFile = File(...), source_language: str = Form("vi"), target_language: str = Form("en"),
     speed: float = Form(1.0),
 ) -> dict:
     started = time.perf_counter(); payload = await audio.read()
     if not payload: raise HTTPException(400, "Audio is empty.")
     if len(payload) > settings.max_upload_mb * 1024 * 1024: raise HTTPException(413, f"Audio exceeds {settings.max_upload_mb} MB.")
-    if target_language == source_language and source_language != "auto": raise HTTPException(400, "Source and target languages must differ.")
+    if source_language != "vi" or target_language != "en":
+        raise HTTPException(400, "This branch supports Vietnamese to English only.")
     if not 0.7 <= speed <= 1.3: raise HTTPException(400, "Speed must be between 0.7 and 1.3.")
     try:
         if settings.mode == "mock":

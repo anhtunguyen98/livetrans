@@ -2,19 +2,18 @@
 set -Eeuo pipefail
 SCRIPT_PATH="$(readlink -f -- "${BASH_SOURCE[0]}")"
 source "$(dirname -- "$SCRIPT_PATH")/common.sh"
-require_command tmux; require_command vllm; require_command curl
+require_command tmux; require_command vllm; require_command curl; require_command python
 
 ASR_SESSION="${LIVETRANS_ASR_SESSION:-livetrans-asr}"
 MT_SESSION="${LIVETRANS_MT_SESSION:-livetrans-mt}"
 TTS_SESSION="${LIVETRANS_TTS_SESSION:-livetrans-tts}"
-ASR_MODEL="${LIVETRANS_ASR_MODEL:-Qwen/Qwen3-ASR-0.6B}"
+ASR_MODEL="${LIVETRANS_ASR_MODEL:-hynt/Zipformer-30M-RNNT-6000h}"
 MT_MODEL="${LIVETRANS_MT_MODEL:-tencent/Hy-MT2-1.8B}"
 ASR_PORT="${LIVETRANS_ASR_PORT:-8101}"
 MT_PORT="${LIVETRANS_MT_PORT:-8102}"
 TTS_PORT="${LIVETRANS_TTS_PORT:-8103}"
 API_KEY="${LIVETRANS_VLLM_API_KEY:-local}"
 GPU_ID="${LIVETRANS_GPU_ID:-0}"
-ASR_GPU_MEMORY="${LIVETRANS_ASR_GPU_MEMORY:-0.18}"
 MT_GPU_MEMORY="${LIVETRANS_MT_GPU_MEMORY:-0.42}"
 WAIT_SECONDS="${LIVETRANS_START_WAIT_SECONDS:-180}"
 
@@ -26,7 +25,7 @@ else info "MT port $MT_PORT is already open"; fi
 wait_http MT "http://127.0.0.1:${MT_PORT}/v1/models" "$API_KEY" "$WAIT_SECONDS"
 
 if ! port_open "$ASR_PORT"; then
-  start_tmux "$ASR_SESSION" "CUDA_VISIBLE_DEVICES='$GPU_ID' vllm serve '$ASR_MODEL' --host 0.0.0.0 --port '$ASR_PORT' --served-model-name '$ASR_MODEL' --trust-remote-code --enforce-eager --gpu-memory-utilization '$ASR_GPU_MEMORY' --max-model-len 4096 --api-key '$API_KEY'" "$LOG_DIR/asr.log"
+  start_tmux "$ASR_SESSION" "LIVETRANS_ASR_MODEL='$ASR_MODEL' python -m uvicorn app.zipformer_service:app --host 0.0.0.0 --port '$ASR_PORT'" "$LOG_DIR/asr.log"
 else info "ASR port $ASR_PORT is already open"; fi
 wait_http ASR "http://127.0.0.1:${ASR_PORT}/v1/models" "$API_KEY" "$WAIT_SECONDS"
 

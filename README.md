@@ -1,24 +1,25 @@
-# LiveTrans
+# LiveTrans · Vietnamese to English
 
-Near-live speech-to-speech translation with a continuous browser audio stream.
+Near-live Vietnamese-to-English speech translation with a continuous browser audio stream.
 
 ```text
 Microphone (PCM16/16 kHz)
   -> OmniVAD utterance endpointing
-  -> Qwen3-ASR-0.6B on vLLM
+  -> hynt Zipformer-30M RNNT on sherpa-onnx (CPU)
   -> Hy-MT2-1.8B on vLLM
   -> OmniVoice
   -> ordered browser audio segments
 ```
 
 The UI runs on port `8007`. ASR, translation, and TTS are separate persistent
-services, so model weights are loaded once and kept on the GPU.
+services, so model weights are loaded only once. This branch accepts only
+Vietnamese input and always translates it to English.
 
 ## Features
 
 - Start/stop continuous microphone streaming; VAD cuts utterances without
   closing the session.
-- Token-level ASR dictation using vLLM transcription SSE deltas.
+- Rolling Vietnamese ASR dictation using the 30M Zipformer RNNT model.
 - Stable draft/final translation feed.
 - Sentence/utterance-level TTS queue with TTFT, TTFA, synthesis, and queue
   latency shown in the UI.
@@ -33,7 +34,8 @@ services, so model weights are loaded once and kept on the GPU.
 - Python 3.12
 - NVIDIA RTX 3090 (24 GB)
 - CUDA-capable PyTorch
-- `vllm 0.25.1`
+- `vllm 0.25.1` (translation only)
+- `sherpa-onnx >= 1.12.6` (ASR)
 - `omnivoice 0.2.1`
 - `omnivad 0.2.13`
 
@@ -54,6 +56,7 @@ Create a virtual environment:
 ```bash
 git clone https://github.com/anhtunguyen98/livetrans.git
 cd livetrans
+git switch vi-en-zipformer
 
 python3.12 -m venv .venv
 source .venv/bin/activate
@@ -77,8 +80,9 @@ The launcher scripts automatically load `.env`. Important defaults:
 ```dotenv
 LIVETRANS_MODE=real
 LIVETRANS_GPU_ID=0
-LIVETRANS_ASR_GPU_MEMORY=0.18
 LIVETRANS_MT_GPU_MEMORY=0.42
+LIVETRANS_ZIPFORMER_THREADS=4
+LIVETRANS_ZIPFORMER_INT8=1
 LIVETRANS_TTS_NUM_STEP=16
 LIVETRANS_TTS_DTYPE=float32
 ```
@@ -87,7 +91,7 @@ Default ports:
 
 | Service | Port | Runtime |
 | --- | ---: | --- |
-| Qwen3-ASR | 8101 | vLLM |
+| Zipformer-30M Vietnamese ASR | 8101 | FastAPI/sherpa-onnx CPU |
 | Hy-MT2 | 8102 | vLLM |
 | OmniVoice | 8103 | FastAPI/PyTorch |
 | UI/API | 8007 | FastAPI |
@@ -150,8 +154,8 @@ LIVETRANS_MODE=mock python -m uvicorn app.main:app \
    mono PCM16 audio at 16 kHz.
 2. OmniVAD identifies speech boundaries. RMS/peak values are displayed only as
    input diagnostics and never decide whether ASR runs.
-3. While an utterance is active, Qwen3-ASR is called on rolling windows. vLLM
-   SSE transcription deltas are forwarded to the UI word by word.
+3. While an utterance is active, the offline Zipformer RNNT is called on rolling
+   windows. Each completed rolling hypothesis is forwarded to the dictation UI.
 4. At a VAD endpoint, final ASR and MT output is committed. The microphone and
    WebSocket remain open for the next utterance.
 5. Translated text is queued to the persistent OmniVoice service and returned
@@ -192,8 +196,8 @@ Uploaded audio is limited to the first 600 seconds by default. Change
   from `localhost`.
 - **A model port is already open:** run `./scripts/status.sh`, then stop the old
   tmux session or use `./scripts/stop.sh`.
-- **CUDA out of memory:** reduce `LIVETRANS_ASR_GPU_MEMORY` and
-  `LIVETRANS_MT_GPU_MEMORY`, or place services on separate GPUs.
+- **CUDA out of memory:** reduce `LIVETRANS_MT_GPU_MEMORY`, or place MT and TTS
+  on separate GPUs. Zipformer ASR runs on CPU.
 - **No automatic playback:** browser autoplay policy may require clicking the
   output play button once.
 - **Inspect captured audio:** use the input preview/download controls in the UI
@@ -203,5 +207,9 @@ Uploaded audio is limited to the first 600 seconds by default. Change
 
 The interface is adapted from the interaction and visual direction of
 [X-Translator](https://github.com/zhaoyx239/X-Translator) (MIT). Model and
-runtime projects retain their respective licenses: Qwen3-ASR, Hy-MT2,
-OmniVoice, OmniVAD, and vLLM.
+runtime projects retain their respective licenses: Zipformer, Hy-MT2,
+OmniVoice, OmniVAD, sherpa-onnx, and vLLM.
+
+The `hynt/Zipformer-30M-RNNT-6000h` model card declares
+`CC-BY-NC-ND-4.0`. Review that license before deployment, especially for any
+commercial use or redistribution.
