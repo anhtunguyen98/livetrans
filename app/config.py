@@ -6,7 +6,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     app_name: str = "LiveTrans Desk"
     mode: str = "mock"
-    asr_model: str = "hynt/Zipformer-30M-RNNT-6000h"
+    asr_model: str = "g-group-ai-lab/gipformer1.5-65M-rnnt"
     mt_model: str = "tencent/Hy-MT2-1.8B"
     tts_model: str = "k2-fsa/OmniVoice"
     device: str = "auto"

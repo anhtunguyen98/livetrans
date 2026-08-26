@@ -14,13 +14,14 @@ from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
 from huggingface_hub import snapshot_download
 
-MODEL_ID = os.getenv("LIVETRANS_ASR_MODEL", "hynt/Zipformer-30M-RNNT-6000h")
-MODEL_DIR = os.getenv("LIVETRANS_ZIPFORMER_MODEL_DIR", "")
-NUM_THREADS = int(os.getenv("LIVETRANS_ZIPFORMER_THREADS", "4"))
-USE_INT8 = os.getenv("LIVETRANS_ZIPFORMER_INT8", "1").lower() not in {"0", "false", "no"}
+MODEL_ID = os.getenv("LIVETRANS_ASR_MODEL", "g-group-ai-lab/gipformer1.5-65M-rnnt")
+MODEL_DIR = os.getenv("LIVETRANS_GIPFORMER_MODEL_DIR", "")
+NUM_THREADS = int(os.getenv("LIVETRANS_GIPFORMER_THREADS", "4"))
+USE_INT8 = os.getenv("LIVETRANS_GIPFORMER_INT8", "1").lower() not in {"0", "false", "no"}
+DECODING_METHOD = os.getenv("LIVETRANS_GIPFORMER_DECODING_METHOD", "modified_beam_search")
 
 
-class ZipformerASR:
+class GipformerASR:
     def __init__(self) -> None:
         import sherpa_onnx
 
@@ -29,20 +30,19 @@ class ZipformerASR:
         else:
             model_dir = Path(snapshot_download(
                 MODEL_ID,
-                allow_patterns=["*.onnx", "config.json", "bpe.model"],
+                allow_patterns=["*.onnx", "tokens.txt"],
             ))
         suffix = ".int8" if USE_INT8 else ""
         self.model_dir = model_dir
         self.recognizer = sherpa_onnx.OfflineRecognizer.from_transducer(
-            tokens=str(model_dir / "config.json"),
-            encoder=str(model_dir / f"encoder-epoch-20-avg-10{suffix}.onnx"),
-            decoder=str(model_dir / "decoder-epoch-20-avg-10.onnx"),
-            joiner=str(model_dir / f"joiner-epoch-20-avg-10{suffix}.onnx"),
+            tokens=str(model_dir / "tokens.txt"),
+            encoder=str(model_dir / f"encoder{suffix}.onnx"),
+            decoder=str(model_dir / f"decoder{suffix}.onnx"),
+            joiner=str(model_dir / f"joiner{suffix}.onnx"),
             num_threads=NUM_THREADS,
             sample_rate=16000,
             feature_dim=80,
-            blank_penalty=0.25,
-            decoding_method="greedy_search",
+            decoding_method=DECODING_METHOD,
         )
         self._lock = threading.Lock()
 
@@ -57,22 +57,22 @@ class ZipformerASR:
         with self._lock:
             stream = self.recognizer.create_stream()
             stream.accept_waveform(16000, samples.astype(np.float32) / 32768.0)
-            self.recognizer.decode_stream(stream)
+            self.recognizer.decode_streams([stream])
             return stream.result.text.strip()
 
 
-asr: ZipformerASR | None = None
+asr: GipformerASR | None = None
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     global asr
-    asr = await asyncio.to_thread(ZipformerASR)
+    asr = await asyncio.to_thread(GipformerASR)
     yield
     asr = None
 
 
-app = FastAPI(title="Vietnamese Zipformer ASR", lifespan=lifespan)
+app = FastAPI(title="Vietnamese GIPFormer ASR", lifespan=lifespan)
 
 
 @app.get("/healthz")
@@ -82,7 +82,10 @@ def health() -> dict:
 
 @app.get("/v1/models")
 def models() -> dict:
-    return {"object": "list", "data": [{"id": MODEL_ID, "object": "model", "owned_by": "hynt"}]}
+    return {
+        "object": "list",
+        "data": [{"id": MODEL_ID, "object": "model", "owned_by": "g-group-ai-lab"}],
+    }
 
 
 @app.post("/v1/audio/transcriptions", response_model=None)
@@ -96,7 +99,7 @@ async def transcriptions(
     if language not in {"vi", "vie", "Vietnamese", ""}:
         raise HTTPException(400, "This ASR service supports Vietnamese only.")
     if asr is None:
-        raise HTTPException(503, "Zipformer is still loading.")
+        raise HTTPException(503, "GIPFormer is still loading.")
     payload = await file.read()
     try:
         text = await asyncio.to_thread(asr.transcribe, payload)

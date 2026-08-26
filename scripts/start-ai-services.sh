@@ -7,7 +7,7 @@ require_command tmux; require_command vllm; require_command curl; require_comman
 ASR_SESSION="${LIVETRANS_ASR_SESSION:-livetrans-asr}"
 MT_SESSION="${LIVETRANS_MT_SESSION:-livetrans-mt}"
 TTS_SESSION="${LIVETRANS_TTS_SESSION:-livetrans-tts}"
-ASR_MODEL="${LIVETRANS_ASR_MODEL:-hynt/Zipformer-30M-RNNT-6000h}"
+ASR_MODEL="${LIVETRANS_ASR_MODEL:-g-group-ai-lab/gipformer1.5-65M-rnnt}"
 MT_MODEL="${LIVETRANS_MT_MODEL:-tencent/Hy-MT2-1.8B}"
 ASR_PORT="${LIVETRANS_ASR_PORT:-8101}"
 MT_PORT="${LIVETRANS_MT_PORT:-8102}"
@@ -25,7 +25,7 @@ else info "MT port $MT_PORT is already open"; fi
 wait_http MT "http://127.0.0.1:${MT_PORT}/v1/models" "$API_KEY" "$WAIT_SECONDS"
 
 if ! port_open "$ASR_PORT"; then
-  start_tmux "$ASR_SESSION" "LIVETRANS_ASR_MODEL='$ASR_MODEL' python -m uvicorn app.zipformer_service:app --host 0.0.0.0 --port '$ASR_PORT'" "$LOG_DIR/asr.log"
+  start_tmux "$ASR_SESSION" "LIVETRANS_ASR_MODEL='$ASR_MODEL' python -m uvicorn app.gipformer_service:app --host 0.0.0.0 --port '$ASR_PORT'" "$LOG_DIR/asr.log"
 else info "ASR port $ASR_PORT is already open"; fi
 wait_http ASR "http://127.0.0.1:${ASR_PORT}/v1/models" "$API_KEY" "$WAIT_SECONDS"
 

@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#07111f"><title>LiveTrans · Realtime Interpreter</title><link rel="stylesheet" href="/static/styles.css?v=20260826-x1"><link rel="stylesheet" href="/static/dictation.css?v=20260826-x1"></head>
 <body><main class="page">
-  <section class="panel hero"><div class="runtime"><i></i><span id="runtimeText">Đang kiểm tra services</span></div><p class="eyebrow">Vietnamese → English speech translation</p><h1>LiveTrans</h1><p class="hero-copy">Nói tiếng Việt. Xem bản dịch tiếng Anh xuất hiện và nghe lại bằng OmniVoice theo từng segment.</p><div class="model-route"><span id="asrModel">Zipformer-30M</span><i>→</i><span id="mtModel">Hy-MT2</span><i>→</i><span id="ttsModel">OmniVoice</span></div></section>
+  <section class="panel hero"><div class="runtime"><i></i><span id="runtimeText">Đang kiểm tra services</span></div><p class="eyebrow">Vietnamese → English speech translation</p><h1>LiveTrans</h1><p class="hero-copy">Nói tiếng Việt. Xem bản dịch tiếng Anh xuất hiện và nghe lại bằng OmniVoice theo từng segment.</p><div class="model-route"><span id="asrModel">GIPFormer-1.5</span><i>→</i><span id="mtModel">Hy-MT2</span><i>→</i><span id="ttsModel">OmniVoice</span></div></section>
   <section class="panel control-panel"><div class="control-meta"><p class="label">Voice route</p><div class="language-row">
     <label class="route-select"><span>Nguồn</span><select id="sourceLanguage" disabled><option value="vi" selected>Tiếng Việt</option></select></label>
     <button id="swapLanguages" class="swap" type="button" aria-label="Cố định Việt sang Anh" disabled>→</button>

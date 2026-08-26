@@ -3,4 +3,5 @@ vllm[audio]==0.25.1
 omnivoice==0.2.1
 soundfile>=0.13,<1
 sherpa-onnx>=1.12.6
+sherpa-onnx-core>=1.12.6
 huggingface-hub>=0.28
