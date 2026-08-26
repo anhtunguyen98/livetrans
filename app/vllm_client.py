@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import io
 import json
+import re
 import time
 import wave
 from collections.abc import Awaitable, Callable
@@ -16,6 +17,20 @@ LANGUAGE_NAMES = {
     "de": "German", "es": "Spanish", "it": "Italian", "pt": "Portuguese",
     "ru": "Russian", "th": "Thai", "id": "Indonesian",
 }
+
+LANGUAGE_CODES = {name.lower(): code for code, name in LANGUAGE_NAMES.items() if code != "auto"}
+ASR_TEXT_MARKER = "<asr_text>"
+
+
+def parse_asr_output(text: str, fallback_language: str) -> tuple[str, str]:
+    """Strip Qwen3-ASR's auto-detection prefix: `Chinese<asr_text>...`."""
+    text = text.strip()
+    if ASR_TEXT_MARKER not in text:
+        return text, fallback_language
+    language_name, transcript = text.split(ASR_TEXT_MARKER, 1)
+    normalized_name = re.sub(r"\s+", " ", language_name).strip().lower()
+    detected = LANGUAGE_CODES.get(normalized_name, fallback_language)
+    return transcript.strip(), detected
 
 
 def pcm16_wav(pcm: bytes, sample_rate: int = 16000) -> bytes:
@@ -96,7 +111,8 @@ class VLLMClients:
                 detail = response.text
             raise RuntimeError(f"ASR vLLM rejected the request: {detail or response.status_code}")
         result = response.json()
-        return (result.get("text") or result.get("transcription") or "").strip(), str(result.get("language", language))
+        raw_text = result.get("text") or result.get("transcription") or ""
+        return parse_asr_output(raw_text, str(result.get("language", language)))
 
     async def transcribe_audio_stream(
         self,
@@ -124,10 +140,14 @@ class VLLMClients:
                     token = payload.get("choices", [{}])[0].get("delta", {}).get("content") or ""
                     if token:
                         chunks.append(token)
-                        await on_delta("".join(chunks))
+                        current = "".join(chunks)
+                        if language != "auto":
+                            await on_delta(current)
+                        elif ASR_TEXT_MARKER in current:
+                            await on_delta(current.split(ASR_TEXT_MARKER, 1)[1])
         except httpx.ConnectError as exc:
             raise RuntimeError(f"ASR vLLM is unavailable at {self.settings.asr_base_url}") from exc
-        return "".join(chunks).strip(), language
+        return parse_asr_output("".join(chunks), language)
 
     async def translate(self, text: str, source: str, target: str) -> str:
         translation, _ = await self.translate_with_metrics(text, source, target)
