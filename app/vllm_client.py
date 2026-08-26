@@ -54,12 +54,27 @@ def is_pcm16_mono_16k(audio: bytes) -> bool:
         return False
 
 
-async def normalize_for_asr(audio: bytes) -> bytes:
+def trim_pcm16_wav(audio: bytes, max_seconds: int) -> bytes:
+    with wave.open(io.BytesIO(audio), "rb") as source:
+        frame_limit = max_seconds * source.getframerate()
+        if source.getnframes() <= frame_limit:
+            return audio
+        frames = source.readframes(frame_limit)
+        output = io.BytesIO()
+        with wave.open(output, "wb") as target:
+            target.setparams(source.getparams())
+            target.writeframes(frames)
+        return output.getvalue()
+
+
+async def normalize_for_asr(audio: bytes, max_seconds: int | None = None) -> bytes:
     """Normalize browser uploads to the WAV format accepted by vLLM ASR."""
     if is_pcm16_mono_16k(audio):
-        return audio
+        return trim_pcm16_wav(audio, max_seconds) if max_seconds else audio
+    duration_args = ["-t", str(max_seconds)] if max_seconds else []
     process = await asyncio.create_subprocess_exec(
         "ffmpeg", "-hide_banner", "-loglevel", "error", "-i", "pipe:0",
+        *duration_args,
         "-ar", "16000", "-ac", "1", "-c:a", "pcm_s16le", "-f", "wav", "pipe:1",
         stdin=asyncio.subprocess.PIPE,
         stdout=asyncio.subprocess.PIPE,
@@ -69,7 +84,14 @@ async def normalize_for_asr(audio: bytes) -> bytes:
     if process.returncode != 0 or not stdout:
         detail = stderr.decode("utf-8", errors="replace").strip()
         raise RuntimeError(f"Audio conversion failed: {detail or 'unsupported input format'}")
-    return stdout
+    # WAV written to a non-seekable pipe can retain an unknown RIFF/data size.
+    # Re-wrap the PCM payload so downstream duration metadata is exact.
+    try:
+        with wave.open(io.BytesIO(stdout), "rb") as source:
+            frames = source.readframes(source.getnframes())
+        return pcm16_wav(frames, sample_rate=16000)
+    except wave.Error as exc:
+        raise RuntimeError(f"ffmpeg returned an invalid WAV: {exc}") from exc
 
 
 class VLLMClients:
@@ -90,8 +112,11 @@ class VLLMClients:
     async def transcribe(self, pcm: bytes, language: str) -> tuple[str, str]:
         return await self.transcribe_audio(pcm16_wav(pcm), "live.wav", "audio/wav", language)
 
-    async def transcribe_audio(self, audio: bytes, filename: str, mime: str, language: str) -> tuple[str, str]:
-        audio = await normalize_for_asr(audio)
+    async def transcribe_audio(
+        self, audio: bytes, filename: str, mime: str, language: str,
+        max_seconds: int | None = None,
+    ) -> tuple[str, str]:
+        audio = await normalize_for_asr(audio, max_seconds=max_seconds)
         filename, mime = "audio-16k.wav", "audio/wav"
         data = {"model": self.settings.asr_model, "response_format": "json"}
         if language != "auto": data["language"] = language

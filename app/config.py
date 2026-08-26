@@ -11,6 +11,7 @@ class Settings(BaseSettings):
     tts_model: str = "k2-fsa/OmniVoice"
     device: str = "auto"
     max_upload_mb: int = 30
+    max_file_seconds: int = 600
     asr_base_url: str = "http://127.0.0.1:8101/v1"
     mt_base_url: str = "http://127.0.0.1:8102/v1"
     tts_base_url: str = "http://127.0.0.1:8103"

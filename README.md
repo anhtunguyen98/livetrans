@@ -183,6 +183,9 @@ curl -X POST http://localhost:8007/api/translate \
   -F speed=1.0
 ```
 
+Uploaded audio is limited to the first 600 seconds by default. Change
+`LIVETRANS_MAX_FILE_SECONDS` in `.env` to use a different limit.
+
 ## Troubleshooting
 
 - **Microphone unavailable:** browsers require HTTPS unless the UI is opened

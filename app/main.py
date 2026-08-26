@@ -57,7 +57,9 @@ async def translate(
             transcript, translation, detected, speech, mime = result.transcript, result.translation, result.detected_language, result.audio_bytes, result.audio_mime
         else:
             transcript, detected = await live_handler.vllm.transcribe_audio(
-                payload, audio.filename or "recording.webm", audio.content_type or "application/octet-stream", source_language
+                payload, audio.filename or "recording.webm",
+                audio.content_type or "application/octet-stream", source_language,
+                max_seconds=settings.max_file_seconds,
             )
             translation, mt_ttft_ms = await live_handler.vllm.translate_with_metrics(
                 transcript, detected if source_language == "auto" else source_language, target_language
