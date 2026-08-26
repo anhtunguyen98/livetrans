@@ -1,0 +1,38 @@
+.dictation-meta {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.dictation-box {
+  font-size: 1.16rem;
+  letter-spacing: .005em;
+}
+
+.dictation-stable,
+.dictation-final {
+  color: var(--text);
+}
+
+.dictation-hypothesis {
+  color: rgba(142, 247, 255, .58);
+}
+
+.dictation-caret {
+  display: inline-block;
+  width: 2px;
+  height: 1.15em;
+  margin-left: 4px;
+  vertical-align: -.2em;
+  background: var(--accent);
+  box-shadow: 0 0 10px rgba(47, 211, 255, .65);
+  animation: dictation-pulse .9s steps(1, end) infinite;
+}
+
+@keyframes dictation-pulse {
+  50% { opacity: .18; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dictation-caret { animation: none; }
+}
