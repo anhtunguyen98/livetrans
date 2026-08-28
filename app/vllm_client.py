@@ -179,21 +179,27 @@ class VLLMClients:
         return translation
 
     async def translate_with_metrics(self, text: str, source: str, target: str) -> tuple[str, int]:
-        pair_guidance = ""
         if source == "vi" and target == "en":
-            pair_guidance = (
-                " In Vietnamese conversational speech, translate 'alo' as 'hello' "
-                "(or 'hey' when more natural); never leave it as 'alo'."
+            # Hy-MT2 follows its documented terminology-reference template more
+            # reliably than rules appended to a generic translation prompt.
+            prompt = (
+                "Reference the following translations when they denote calendar weekdays:\n"
+                "\"thứ tư\" translates to \"Wednesday\"\n"
+                "\"thứ 4\" translates to \"Wednesday\"\n"
+                "\"thứ năm\" translates to \"Thursday\"\n"
+                "\"thứ 5\" translates to \"Thursday\"\n"
+                "\"alo\" translates to \"hello\"\n\n"
+                "Translate the following text into English. Translate spoken number "
+                "sequences naturally. Note that you must ONLY output the translated "
+                "result without any additional explanation:\n"
+                f"{text}"
             )
-        prompt = (
-            f"Translate the following text from {LANGUAGE_NAMES.get(source, source)} "
-            f"to {LANGUAGE_NAMES.get(target, target)}. Output only the translation. "
-            "Translate every translatable expression, including greetings, fillers, "
-            "interjections, and spoken number sequences, into a natural target-language "
-            "equivalent. Do not copy source-language words unless they are proper names, "
-            "technical terms, or have no natural equivalent. Preserve the meaning and "
-            f"appropriate punctuation.{pair_guidance}\n\n{text}"
-        )
+        else:
+            prompt = (
+                f"Translate the following text into {LANGUAGE_NAMES.get(target, target)}. "
+                "Note that you should only output the translated result without any "
+                f"additional explanation:\n{text}"
+            )
         started = time.perf_counter()
         first_token_ms = 0
         chunks: list[str] = []
@@ -201,7 +207,8 @@ class VLLMClients:
             async with self.client.stream(
                 "POST", f"{self.settings.mt_base_url.rstrip('/')}/chat/completions",
                 json={"model": self.settings.mt_model, "messages": [{"role": "user", "content": prompt}],
-                      "temperature": 0.2, "top_p": 0.6, "max_tokens": 512, "stream": True},
+                      "temperature": 0.1, "top_p": 0.6, "top_k": 20,
+                      "repetition_penalty": 1.05, "max_tokens": 512, "stream": True},
             ) as response:
                 response.raise_for_status()
                 async for line in response.aiter_lines():
