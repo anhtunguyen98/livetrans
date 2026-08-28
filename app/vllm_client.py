@@ -57,8 +57,14 @@ def correct_vi_weekday_translation(source: str, translation: str) -> str:
     corrected = EN_WEEKDAY_OR_ORDINAL.sub(
         lambda match: next(replacements, match.group(0)), translation
     )
-    return re.sub(
+    corrected = re.sub(
         r"\b(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\s+day\b",
+        r"\1",
+        corrected,
+        flags=re.IGNORECASE,
+    )
+    return re.sub(
+        r"\bthe\s+(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)(?=\s*[,?!\.]|$)",
         r"\1",
         corrected,
         flags=re.IGNORECASE,
