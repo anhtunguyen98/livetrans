@@ -31,7 +31,7 @@ VI_WEEKDAYS = {
 }
 EN_WEEKDAY_OR_ORDINAL = re.compile(
     r"\b(?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday|"
-    r"second|third|fourth|fifth|sixth|seventh)\b",
+    r"second|third|fourth|fifth|sixth|seventh|2nd|3rd|4th|5th|6th|7th)\b",
     re.IGNORECASE,
 )
 VI_CALENDAR_CONTEXT = re.compile(
@@ -58,8 +58,23 @@ def correct_vi_weekday_translation(source: str, translation: str) -> str:
         lambda match: next(replacements, match.group(0)), translation
     )
     corrected = re.sub(
-        r"\b(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\s+day\b",
+        r"\b(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)"
+        r"\s+day(?:\s+of\s+(?:the\s+)?week)?\b",
         r"\1",
+        corrected,
+        flags=re.IGNORECASE,
+    )
+    corrected = re.sub(
+        r"\b(on|is)\s+the\s+"
+        r"(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\b",
+        r"\1 \2",
+        corrected,
+        flags=re.IGNORECASE,
+    )
+    corrected = re.sub(
+        r"\b(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\s+of\s+"
+        r"(January|February|March|April|May|June|July|August|September|October|November|December)\b",
+        r"\1, \2",
         corrected,
         flags=re.IGNORECASE,
     )
