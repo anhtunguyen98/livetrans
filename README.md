@@ -20,6 +20,8 @@ Vietnamese input and always translates it to English.
 - Start/stop continuous microphone streaming; VAD cuts utterances without
   closing the session.
 - Rolling Vietnamese ASR dictation using the 30M Zipformer RNNT model.
+- Vietnamese lowercase and inverse text normalization with NeMo WFST grammars
+  for dates, times, quantities, money, and telephone numbers.
 - Stable draft/final translation feed.
 - Sentence/utterance-level TTS queue with TTFT, TTFA, synthesis, and queue
   latency shown in the UI.
@@ -83,6 +85,7 @@ LIVETRANS_GPU_ID=0
 LIVETRANS_MT_GPU_MEMORY=0.42
 LIVETRANS_ZIPFORMER_THREADS=4
 LIVETRANS_ZIPFORMER_INT8=1
+LIVETRANS_VI_ITN_CACHE_DIR=.cache/livetrans/vi_itn
 LIVETRANS_TTS_NUM_STEP=16
 LIVETRANS_TTS_DTYPE=float32
 ```
@@ -155,7 +158,8 @@ LIVETRANS_MODE=mock python -m uvicorn app.main:app \
 2. OmniVAD identifies speech boundaries. RMS/peak values are displayed only as
    input diagnostics and never decide whether ASR runs.
 3. While an utterance is active, the offline Zipformer RNNT is called on rolling
-   windows. Each completed rolling hypothesis is forwarded to the dictation UI.
+   windows. Its uppercase transcript is lowercased and passed through Vietnamese
+   NeMo inverse text normalization before each hypothesis reaches the UI and MT.
 4. At a VAD endpoint, final ASR and MT output is committed. The microphone and
    WebSocket remain open for the next utterance.
 5. Translated text is queued to the persistent OmniVoice service and returned

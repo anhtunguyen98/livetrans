@@ -18,11 +18,17 @@ MODEL_ID = os.getenv("LIVETRANS_ASR_MODEL", "hynt/Zipformer-30M-RNNT-6000h")
 MODEL_DIR = os.getenv("LIVETRANS_ZIPFORMER_MODEL_DIR", "")
 NUM_THREADS = int(os.getenv("LIVETRANS_ZIPFORMER_THREADS", "4"))
 USE_INT8 = os.getenv("LIVETRANS_ZIPFORMER_INT8", "1").lower() not in {"0", "false", "no"}
+ITN_CACHE_DIR = Path(
+    os.getenv("LIVETRANS_VI_ITN_CACHE_DIR", ".cache/livetrans/vi_itn")
+).expanduser().resolve()
 
 
 class ZipformerASR:
     def __init__(self) -> None:
         import sherpa_onnx
+        from nemo_text_processing.inverse_text_normalization.inverse_normalize import (
+            InverseNormalizer,
+        )
 
         if MODEL_DIR:
             model_dir = Path(MODEL_DIR).expanduser().resolve()
@@ -44,6 +50,12 @@ class ZipformerASR:
             blank_penalty=0.25,
             decoding_method="greedy_search",
         )
+        ITN_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+        self.text_normalizer = InverseNormalizer(
+            lang="vi",
+            input_case="lower_cased",
+            cache_dir=str(ITN_CACHE_DIR),
+        )
         self._lock = threading.Lock()
 
     def transcribe(self, payload: bytes) -> str:
@@ -58,7 +70,12 @@ class ZipformerASR:
             stream = self.recognizer.create_stream()
             stream.accept_waveform(16000, samples.astype(np.float32) / 32768.0)
             self.recognizer.decode_stream(stream)
-            return stream.result.text.strip()
+            raw_text = stream.result.text.strip()
+            if not raw_text:
+                return ""
+            return self.text_normalizer.inverse_normalize(
+                raw_text.lower(), verbose=False
+            ).strip()
 
 
 asr: ZipformerASR | None = None
@@ -77,7 +94,12 @@ app = FastAPI(title="Vietnamese Zipformer ASR", lifespan=lifespan)
 
 @app.get("/healthz")
 def health() -> dict:
-    return {"ready": asr is not None, "model": MODEL_ID, "language": "vi"}
+    return {
+        "ready": asr is not None,
+        "model": MODEL_ID,
+        "language": "vi",
+        "inverse_text_normalization": "nemo-vi",
+    }
 
 
 @app.get("/v1/models")
