@@ -21,6 +21,49 @@ LANGUAGE_NAMES = {
 LANGUAGE_CODES = {name.lower(): code for code, name in LANGUAGE_NAMES.items() if code != "auto"}
 ASR_TEXT_MARKER = "<asr_text>"
 
+VI_WEEKDAYS = {
+    "hai": ("Monday", "second"), "2": ("Monday", "second"),
+    "ba": ("Tuesday", "third"), "3": ("Tuesday", "third"),
+    "tư": ("Wednesday", "fourth"), "4": ("Wednesday", "fourth"),
+    "năm": ("Thursday", "fifth"), "5": ("Thursday", "fifth"),
+    "sáu": ("Friday", "sixth"), "6": ("Friday", "sixth"),
+    "bảy": ("Saturday", "seventh"), "7": ("Saturday", "seventh"),
+}
+EN_WEEKDAY_OR_ORDINAL = re.compile(
+    r"\b(?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday|"
+    r"second|third|fourth|fifth|sixth|seventh)\b",
+    re.IGNORECASE,
+)
+VI_CALENDAR_CONTEXT = re.compile(
+    r"\b(?:hôm nay|hôm qua|ngày mai|tuần (?:này|sau|tới|trước)|"
+    r"vào\s+thứ|là\s+(?:ngày\s+)?thứ|ngày\s+thứ)\b",
+    re.IGNORECASE,
+)
+
+
+def correct_vi_weekday_translation(source: str, translation: str) -> str:
+    """Correct Hy-MT2's systematic Vietnamese weekday offset without prompting it."""
+    if not VI_CALENDAR_CONTEXT.search(source):
+        return translation
+    matches = list(re.finditer(r"\bthứ\s+(hai|ba|tư|năm|sáu|bảy|[2-7])\b", source, re.IGNORECASE))
+    expected_days: list[str] = []
+    for match in matches:
+        # "lần thứ tư" is ordinal, even if another calendar word occurs nearby.
+        if re.search(r"\blần\s*$", source[:match.start()], re.IGNORECASE):
+            continue
+        expected, _ = VI_WEEKDAYS[match.group(1).lower()]
+        expected_days.append(expected)
+    replacements = iter(expected_days)
+    corrected = EN_WEEKDAY_OR_ORDINAL.sub(
+        lambda match: next(replacements, match.group(0)), translation
+    )
+    return re.sub(
+        r"\b(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\s+day\b",
+        r"\1",
+        corrected,
+        flags=re.IGNORECASE,
+    )
+
 
 def parse_asr_output(text: str, fallback_language: str) -> tuple[str, str]:
     """Strip Qwen3-ASR's auto-detection prefix: `Chinese<asr_text>...`."""
@@ -179,27 +222,11 @@ class VLLMClients:
         return translation
 
     async def translate_with_metrics(self, text: str, source: str, target: str) -> tuple[str, int]:
-        if source == "vi" and target == "en":
-            # Hy-MT2 follows its documented terminology-reference template more
-            # reliably than rules appended to a generic translation prompt.
-            prompt = (
-                "Reference the following translations when they denote calendar weekdays:\n"
-                "\"thứ tư\" translates to \"Wednesday\"\n"
-                "\"thứ 4\" translates to \"Wednesday\"\n"
-                "\"thứ năm\" translates to \"Thursday\"\n"
-                "\"thứ 5\" translates to \"Thursday\"\n"
-                "\"alo\" translates to \"hello\"\n\n"
-                "Translate the following text into English. Translate spoken number "
-                "sequences naturally. Note that you must ONLY output the translated "
-                "result without any additional explanation:\n"
-                f"{text}"
-            )
-        else:
-            prompt = (
-                f"Translate the following text into {LANGUAGE_NAMES.get(target, target)}. "
-                "Note that you should only output the translated result without any "
-                f"additional explanation:\n{text}"
-            )
+        prompt = (
+            f"Translate the following text into {LANGUAGE_NAMES.get(target, target)}. "
+            "Note that you should only output the translated result without any "
+            f"additional explanation:\n{text}"
+        )
         started = time.perf_counter()
         first_token_ms = 0
         chunks: list[str] = []
@@ -224,7 +251,10 @@ class VLLMClients:
             raise RuntimeError(
                 f"Translation vLLM is unavailable at {self.settings.mt_base_url}"
             ) from exc
-        return "".join(chunks).strip(), first_token_ms
+        translation = "".join(chunks).strip()
+        if source == "vi" and target == "en":
+            translation = correct_vi_weekday_translation(text, translation)
+        return translation, first_token_ms
 
 
 def stable_prefix(previous: str, current: str) -> str:
