@@ -7,7 +7,7 @@ require_command tmux; require_command vllm; require_command curl; require_comman
 ASR_SESSION="${LIVETRANS_ASR_SESSION:-livetrans-asr}"
 MT_SESSION="${LIVETRANS_MT_SESSION:-livetrans-mt}"
 TTS_SESSION="${LIVETRANS_TTS_SESSION:-livetrans-tts}"
-ASR_MODEL="${LIVETRANS_ASR_MODEL:-hynt/Zipformer-30M-RNNT-6000h}"
+ASR_MODEL="${LIVETRANS_ASR_MODEL:-NghiMe/NghiASR}"
 ASR_PROVIDER="${LIVETRANS_ZIPFORMER_PROVIDER:-cuda}"
 ASR_CUDA_LIBS="${LIVETRANS_CUDA_LIBRARY_PATH:-/usr/local/lib/python3.12/dist-packages/nvidia/cu13/lib:/usr/local/lib/python3.12/dist-packages/nvidia/cudnn/lib:/usr/local/cuda/lib64}"
 MT_MODEL="${LIVETRANS_MT_MODEL:-tencent/Hy-MT2-1.8B}"

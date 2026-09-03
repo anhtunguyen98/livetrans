@@ -16,7 +16,7 @@ from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
 from huggingface_hub import snapshot_download
 
-MODEL_ID = os.getenv("LIVETRANS_ASR_MODEL", "hynt/Zipformer-30M-RNNT-6000h")
+MODEL_ID = os.getenv("LIVETRANS_ASR_MODEL", "NghiMe/NghiASR")
 MODEL_DIR = os.getenv("LIVETRANS_ZIPFORMER_MODEL_DIR", "")
 NUM_THREADS = int(os.getenv("LIVETRANS_ZIPFORMER_THREADS", "4"))
 USE_INT8 = os.getenv("LIVETRANS_ZIPFORMER_INT8", "1").lower() not in {"0", "false", "no"}
@@ -27,8 +27,8 @@ CAPU_REVISION = os.getenv(
     "LIVETRANS_CAPU_REVISION", "261c60f2c30b02455dfce21a43c3ef14fc26992c"
 )
 CAPU_DEVICE = os.getenv("LIVETRANS_CAPU_DEVICE", "cuda")
-CAPU_KEEP_BIAS = float(os.getenv("LIVETRANS_CAPU_KEEP_BIAS", "0.10"))
-CAPU_CASE_BIAS = float(os.getenv("LIVETRANS_CAPU_CASE_BIAS", "0.10"))
+CAPU_KEEP_BIAS = float(os.getenv("LIVETRANS_CAPU_KEEP_BIAS", "0.25"))
+CAPU_CASE_BIAS = float(os.getenv("LIVETRANS_CAPU_CASE_BIAS", "0.00"))
 CAPU_CONTEXT_WORDS = int(os.getenv("LIVETRANS_CAPU_CONTEXT_WORDS", "30"))
 ITN_CACHE_DIR = Path(
     os.getenv("LIVETRANS_VI_ITN_CACHE_DIR", ".cache/livetrans/vi_itn")
@@ -47,15 +47,37 @@ class ZipformerASR:
         else:
             model_dir = Path(snapshot_download(
                 MODEL_ID,
-                allow_patterns=["*.onnx", "config.json", "bpe.model"],
+                allow_patterns=["*.onnx", "config.json", "tokens.txt", "bpe.model"],
             ))
-        suffix = ".int8" if USE_INT8 else ""
+
+        def model_file(component: str) -> Path:
+            candidates = sorted(model_dir.glob(f"{component}-*.onnx"))
+            preferred = [path for path in candidates if (".int8." in path.name) == USE_INT8]
+            choices = preferred or candidates
+            if not choices:
+                raise FileNotFoundError(f"No {component} ONNX file found in {model_dir}")
+            return choices[0]
+
+        tokens = model_dir / "tokens.txt"
+        if not tokens.exists():
+            tokens = model_dir / "config.json"
+        if not tokens.exists():
+            raise FileNotFoundError(f"No tokens.txt or config.json found in {model_dir}")
+        encoder = model_file("encoder")
+        decoder = model_file("decoder")
+        joiner = model_file("joiner")
         self.model_dir = model_dir
+        self.model_files = {
+            "tokens": tokens.name,
+            "encoder": encoder.name,
+            "decoder": decoder.name,
+            "joiner": joiner.name,
+        }
         self.recognizer = sherpa_onnx.OfflineRecognizer.from_transducer(
-            tokens=str(model_dir / "config.json"),
-            encoder=str(model_dir / f"encoder-epoch-20-avg-10{suffix}.onnx"),
-            decoder=str(model_dir / "decoder-epoch-20-avg-10.onnx"),
-            joiner=str(model_dir / f"joiner-epoch-20-avg-10{suffix}.onnx"),
+            tokens=str(tokens),
+            encoder=str(encoder),
+            decoder=str(decoder),
+            joiner=str(joiner),
             num_threads=NUM_THREADS,
             sample_rate=16000,
             feature_dim=80,
@@ -87,7 +109,7 @@ class ZipformerASR:
                 max_len=80,
                 chunk_size=56,
                 overlap_size=16,
-                iterations=3,
+                iterations=2,
                 min_error_probability=0.25,
                 confidence=CAPU_KEEP_BIAS,
                 case_confidence=CAPU_CASE_BIAS,
@@ -184,12 +206,16 @@ def health() -> dict:
         "inverse_text_normalization": "nemo-vi",
         "provider": PROVIDER,
         "capu": CAPU_MODEL_ID if CAPU_ENABLED else None,
+        "files": asr.model_files if asr is not None else None,
     }
 
 
 @app.get("/v1/models")
 def models() -> dict:
-    return {"object": "list", "data": [{"id": MODEL_ID, "object": "model", "owned_by": "hynt"}]}
+    return {
+        "object": "list",
+        "data": [{"id": MODEL_ID, "object": "model", "owned_by": MODEL_ID.split("/", 1)[0]}],
+    }
 
 
 @app.post("/v1/audio/transcriptions", response_model=None)

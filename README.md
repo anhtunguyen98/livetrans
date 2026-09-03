@@ -5,7 +5,7 @@ Near-live Vietnamese-to-English speech translation with a continuous browser aud
 ```text
 Microphone (PCM16/16 kHz)
   -> OmniVAD utterance endpointing
-  -> hynt Zipformer-30M RNNT on sherpa-onnx (CUDA)
+  -> NghiASR Zipformer RNNT on sherpa-onnx (CUDA)
   -> ViBERT CAPU after each completed VAD utterance
   -> Hy-MT2-1.8B on vLLM
   -> OmniVoice
@@ -20,7 +20,7 @@ Vietnamese input and always translates it to English.
 
 - Start/stop continuous microphone streaming; VAD cuts utterances without
   closing the session.
-- Rolling Vietnamese ASR dictation using the 30M Zipformer RNNT model.
+- Rolling Vietnamese/code-switch ASR dictation using NghiASR's Zipformer RNNT.
 - Raw partial text while speaking, then punctuation and capitalization after
   VAD detects a pause; CAPU never delays microphone capture.
 - Vietnamese lowercase and inverse text normalization with NeMo WFST grammars
@@ -102,8 +102,8 @@ LIVETRANS_ZIPFORMER_PROVIDER=cuda
 LIVETRANS_CAPU_ENABLED=1
 LIVETRANS_CAPU_MODEL=dragonSwing/vibert-capu
 LIVETRANS_CAPU_DEVICE=cuda
-LIVETRANS_CAPU_KEEP_BIAS=0.10
-LIVETRANS_CAPU_CASE_BIAS=0.10
+LIVETRANS_CAPU_KEEP_BIAS=0.25
+LIVETRANS_CAPU_CASE_BIAS=0.00
 LIVETRANS_CAPU_CONTEXT_WORDS=30
 LIVETRANS_VI_ITN_CACHE_DIR=.cache/livetrans/vi_itn
 LIVETRANS_TTS_NUM_STEP=16
@@ -114,7 +114,7 @@ Default ports:
 
 | Service | Port | Runtime |
 | --- | ---: | --- |
-| Zipformer-30M Vietnamese ASR | 8101 | FastAPI/sherpa-onnx CUDA |
+| NghiASR Vietnamese/code-switch ASR | 8101 | FastAPI/sherpa-onnx CUDA |
 | Hy-MT2 | 8102 | vLLM |
 | OmniVoice | 8103 | FastAPI/PyTorch |
 | UI/API | 8007 | FastAPI |
@@ -234,6 +234,7 @@ The interface is adapted from the interaction and visual direction of
 runtime projects retain their respective licenses: Zipformer, Hy-MT2,
 OmniVoice, OmniVAD, sherpa-onnx, and vLLM.
 
-The `hynt/Zipformer-30M-RNNT-6000h` model card declares
-`CC-BY-NC-ND-4.0`. Review that license before deployment, especially for any
-commercial use or redistribution.
+The current `NghiMe/NghiASR` model card does not declare a license. Confirm
+redistribution and commercial-use terms with its author before production use.
+The fallback `hynt/Zipformer-30M-RNNT-6000h` model card declares
+`CC-BY-NC-ND-4.0`.
