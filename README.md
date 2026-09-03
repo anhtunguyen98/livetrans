@@ -5,7 +5,8 @@ Near-live Vietnamese-to-English speech translation with a continuous browser aud
 ```text
 Microphone (PCM16/16 kHz)
   -> OmniVAD utterance endpointing
-  -> hynt Zipformer-30M RNNT on sherpa-onnx (CPU)
+  -> hynt Zipformer-30M RNNT on sherpa-onnx (CUDA)
+  -> ViBERT CAPU after each completed VAD utterance
   -> Hy-MT2-1.8B on vLLM
   -> OmniVoice
   -> ordered browser audio segments
@@ -20,6 +21,8 @@ Vietnamese input and always translates it to English.
 - Start/stop continuous microphone streaming; VAD cuts utterances without
   closing the session.
 - Rolling Vietnamese ASR dictation using the 30M Zipformer RNNT model.
+- Raw partial text while speaking, then punctuation and capitalization after
+  VAD detects a pause; CAPU never delays microphone capture.
 - Vietnamese lowercase and inverse text normalization with NeMo WFST grammars
   for dates, times, quantities, money, and telephone numbers.
 - Stable draft/final translation feed.
@@ -37,7 +40,7 @@ Vietnamese input and always translates it to English.
 - NVIDIA RTX 3090 (24 GB)
 - CUDA-capable PyTorch
 - `vllm 0.25.1` (translation only)
-- `sherpa-onnx >= 1.12.6` (ASR)
+- `sherpa-onnx >= 1.12.6` with a matching CUDA wheel (ASR)
 - `omnivoice 0.2.1`
 - `omnivad 0.2.13`
 
@@ -67,6 +70,16 @@ pip install -r requirements.txt
 pip install -r requirements-ai.txt
 ```
 
+For NVIDIA GPU inference, replace the CPU `sherpa-onnx` wheel installed by the
+requirements file with the wheel matching the machine's CUDA major version.
+For CUDA 13 and cuDNN 9:
+
+```bash
+pip install --force-reinstall \
+  'sherpa-onnx==1.13.6+cuda13.cudnn9.onnxruntime1.27.1' \
+  -f https://k2-fsa.github.io/sherpa/onnx/cuda.html
+```
+
 `vllm`, PyTorch, and CUDA wheels must be compatible with the host CUDA driver.
 If the pinned AI requirements do not match the machine, install an appropriate
 PyTorch/vLLM build first, then install `omnivoice`, `omnivad`, and `soundfile`.
@@ -85,6 +98,13 @@ LIVETRANS_GPU_ID=0
 LIVETRANS_MT_GPU_MEMORY=0.42
 LIVETRANS_ZIPFORMER_THREADS=4
 LIVETRANS_ZIPFORMER_INT8=1
+LIVETRANS_ZIPFORMER_PROVIDER=cuda
+LIVETRANS_CAPU_ENABLED=1
+LIVETRANS_CAPU_MODEL=dragonSwing/vibert-capu
+LIVETRANS_CAPU_DEVICE=cuda
+LIVETRANS_CAPU_KEEP_BIAS=0.10
+LIVETRANS_CAPU_CASE_BIAS=0.10
+LIVETRANS_CAPU_CONTEXT_WORDS=30
 LIVETRANS_VI_ITN_CACHE_DIR=.cache/livetrans/vi_itn
 LIVETRANS_TTS_NUM_STEP=16
 LIVETRANS_TTS_DTYPE=float32
@@ -94,7 +114,7 @@ Default ports:
 
 | Service | Port | Runtime |
 | --- | ---: | --- |
-| Zipformer-30M Vietnamese ASR | 8101 | FastAPI/sherpa-onnx CPU |
+| Zipformer-30M Vietnamese ASR | 8101 | FastAPI/sherpa-onnx CUDA |
 | Hy-MT2 | 8102 | vLLM |
 | OmniVoice | 8103 | FastAPI/PyTorch |
 | UI/API | 8007 | FastAPI |
