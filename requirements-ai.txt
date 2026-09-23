@@ -3,5 +3,8 @@ vllm[audio]==0.25.1
 omnivoice==0.2.1
 soundfile>=0.13,<1
 sherpa-onnx>=1.12.6
+onnxruntime>=1.20,<2
+transformers>=4.48,<6
+kenlm @ https://github.com/kpu/kenlm/archive/master.zip
 huggingface-hub>=0.28
 nemo-text-processing>=1.2,<2

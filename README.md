@@ -5,8 +5,9 @@ Near-live Vietnamese-to-English speech translation with a continuous browser aud
 ```text
 Microphone (PCM16/16 kHz)
   -> OmniVAD utterance endpointing
-  -> NghiASR Zipformer RNNT on sherpa-onnx (CUDA)
-  -> ViBERT CAPU after each completed VAD utterance
+  -> checkpoint-122000 Zipformer RNNT INT8 on sherpa-onnx (CUDA)
+  -> bilingual-pruned ViDeBERTa xsmall ONNX INT8 CAPU after each completed VAD utterance
+  -> 3-gram KenLM reranks final greedy/beam hypotheses
   -> Hy-MT2-1.8B on vLLM
   -> OmniVoice
   -> ordered browser audio segments
@@ -20,7 +21,7 @@ Vietnamese input and always translates it to English.
 
 - Start/stop continuous microphone streaming; VAD cuts utterances without
   closing the session.
-- Rolling Vietnamese/code-switch ASR dictation using NghiASR's Zipformer RNNT.
+- Rolling Vietnamese/code-switch ASR dictation using the local checkpoint-122000 Zipformer RNNT.
 - Raw partial text while speaking, then punctuation and capitalization after
   VAD detects a pause; CAPU never delays microphone capture.
 - Vietnamese lowercase and inverse text normalization with NeMo WFST grammars
@@ -99,12 +100,18 @@ LIVETRANS_MT_GPU_MEMORY=0.42
 LIVETRANS_ZIPFORMER_THREADS=4
 LIVETRANS_ZIPFORMER_INT8=1
 LIVETRANS_ZIPFORMER_PROVIDER=cuda
+LIVETRANS_ZIPFORMER_MODEL_DIR=/workspace/livetrans/models/checkpoint-122000-onnx-int8
 LIVETRANS_CAPU_ENABLED=1
-LIVETRANS_CAPU_MODEL=dragonSwing/vibert-capu
-LIVETRANS_CAPU_DEVICE=cuda
-LIVETRANS_CAPU_KEEP_BIAS=0.25
-LIVETRANS_CAPU_CASE_BIAS=0.00
+LIVETRANS_CAPU_MODEL_DIR=/workspace/vicapu/outputs/videberta-xsmall-capu-bilingual-pruned-onnx-int8
+LIVETRANS_CAPU_MODEL_FILE=model.int8.onnx
+LIVETRANS_CAPU_THREADS=4
+LIVETRANS_CAPU_PUNCT_NONE_BIAS=0
+LIVETRANS_CAPU_CASE_KEEP_BIAS=0
 LIVETRANS_CAPU_CONTEXT_WORDS=30
+LIVETRANS_KENLM_ENABLED=1
+LIVETRANS_KENLM_MODEL=/workspace/livetrans/.cache/kenlm/3-gram-lm.binary
+LIVETRANS_KENLM_MAX_ACTIVE_PATHS=4
+LIVETRANS_KENLM_MIN_GAIN=0.05
 LIVETRANS_VI_ITN_CACHE_DIR=.cache/livetrans/vi_itn
 LIVETRANS_TTS_NUM_STEP=16
 LIVETRANS_TTS_DTYPE=float32
@@ -114,7 +121,7 @@ Default ports:
 
 | Service | Port | Runtime |
 | --- | ---: | --- |
-| NghiASR Vietnamese/code-switch ASR | 8101 | FastAPI/sherpa-onnx CUDA |
+| checkpoint-122000 Vietnamese/code-switch ASR INT8 | 8101 | FastAPI/sherpa-onnx CUDA |
 | Hy-MT2 | 8102 | vLLM |
 | OmniVoice | 8103 | FastAPI/PyTorch |
 | UI/API | 8007 | FastAPI |
@@ -220,8 +227,8 @@ Uploaded audio is limited to the first 600 seconds by default. Change
   from `localhost`.
 - **A model port is already open:** run `./scripts/status.sh`, then stop the old
   tmux session or use `./scripts/stop.sh`.
-- **CUDA out of memory:** reduce `LIVETRANS_MT_GPU_MEMORY`, or place MT and TTS
-  on separate GPUs. Zipformer ASR runs on CPU.
+- **CUDA out of memory:** reduce `LIVETRANS_MT_GPU_MEMORY`, switch Zipformer to
+  `LIVETRANS_ZIPFORMER_PROVIDER=cpu`, or place MT and TTS on separate GPUs.
 - **No automatic playback:** browser autoplay policy may require clicking the
   output play button once.
 - **Inspect captured audio:** use the input preview/download controls in the UI
@@ -234,7 +241,7 @@ The interface is adapted from the interaction and visual direction of
 runtime projects retain their respective licenses: Zipformer, Hy-MT2,
 OmniVoice, OmniVAD, sherpa-onnx, and vLLM.
 
-The current `NghiMe/NghiASR` model card does not declare a license. Confirm
-redistribution and commercial-use terms with its author before production use.
+The local checkpoint-122000 has no license metadata in its export directory.
+Confirm redistribution and commercial-use terms with its trainer before production use.
 The fallback `hynt/Zipformer-30M-RNNT-6000h` model card declares
 `CC-BY-NC-ND-4.0`.

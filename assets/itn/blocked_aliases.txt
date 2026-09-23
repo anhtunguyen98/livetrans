@@ -1,0 +1,3 @@
+# Ordinary Vietnamese phrases must not become brand names through CSV reversal.
+hai lần
+hai lần cà phê

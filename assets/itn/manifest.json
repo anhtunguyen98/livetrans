@@ -1,0 +1,7 @@
+{
+  "source": "https://github.com/nghimestudio/vietnormalizer/blob/main/public/non-vietnamese-words-20k.csv",
+  "source_sha256": "8d5e71b0549d3041a5563a11626cce23ec8da8344bdc8dbfa7c876479fb280b9",
+  "active_mappings": 13793,
+  "review_pronunciations": 2152,
+  "note": "Automatic candidates, not manually verified. Add ASR-specific overrides in custom_whitelist.tsv."
+}
